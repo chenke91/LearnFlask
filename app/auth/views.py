@@ -31,11 +31,10 @@ def register():
         user = User(email = form.email.data,
                     username = form.username.data,
                     password = form.password.data)
-        db.session.add(user)
-        db.session.commit()
+        user.save()
         token = user.generate_confirmation_token()
         send_email(user.email,'Confirm Your Account',
-                    'auth/email/Confirm',user = user,token = token)
+                    'auth/email/confirm',user = user,token = token)
         flash('A confirmation email has been sent to you by email.')
         return redirect(url_for('auth.login'))
     return render_template('auth/register.html',form = form)
@@ -45,7 +44,7 @@ def register():
 def confirm(token):
     if current_user.confirmed:
         return redirect(url_for('main.index'))
-    if current_user.comfirm(token):
+    if current_user.confirm(token):
         flash('You have confirmed your account. Thanks!')
     else:
         flash('The confirmation link is invalid or has expired.')
@@ -72,5 +71,5 @@ def resend_confirmation():
                 user = current_user,token = token
                 )
 
-    flash('A new confirmation email has been sent to you by email.')
+    flash('A new confirmation email has been sent to you by email.{token}'.format(token=token))
     return redirect(url_for('main.index'))
