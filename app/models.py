@@ -1,6 +1,9 @@
 import hashlib
 from datetime import datetime
 
+from markdown import markdown
+import bleach
+
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app, request
@@ -10,6 +13,21 @@ from . import db,login_manager
 
 def now_(context):
     return datetime.utcnow()
+
+class Follow(db.Model):
+    __tablename__ = 'follows'
+    follower_id = db.Column(db.Integer, db.ForeignKey('users.id'),
+                            primary_key=True)
+    followed_id = db.Column(db.Integer, db.ForeignKey('users.id'),
+                            primary_key=True)
+    timestamp = db.Column(db.DateTime, default=now_)
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def __repr__(self):
+        return '<Follow %r & %r>' % (self.follower_id, self.follower_id)
 
 class User(UserMixin,db.Model):
     __tablename__ = 'users'
@@ -26,6 +44,16 @@ class User(UserMixin,db.Model):
     last_seen = db.Column(db.DateTime(), default=now_)
     avatar_hash = db.Column(db.String(32))
     posts = db.relationship('Post', backref='author', lazy='dynamic')
+    followed = db.relationship('Follow',
+                               foreign_keys=[Follow.follower_id],
+                               backref=db.backref('followers', lazy='joint'),
+                               lazy='dynamic',
+                               cascade='all, delete-orphan')
+    followers = db.relationship('Follow',
+                               foreign_keys=[Follow.followed_id],
+                               backref=db.backref('followed', lazy='joined'),
+                               lazy='dynamic',
+                               cascade='all, delete-orphan')
 
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
@@ -37,6 +65,15 @@ class User(UserMixin,db.Model):
         if self.email is not None and self.avatar_hash is None:
             self.avatar_hash = hashlib.md5(
                 self.email.encode('utf-8')).hexdigest()
+        self.follow(self)
+
+    @staticmethod
+    def add_self_follows():
+        for user in User.query.all():
+            if not user.is_following(user):
+                user.follow(user)
+                db.session.add(user)
+        db.session.commit()
 
     @property
     def password(self):
@@ -111,6 +148,31 @@ class User(UserMixin,db.Model):
             except IntegrityError or InvalidRequestError:
                 db.session.rollback()
 
+    def follow(self, user):
+        if not self.is_following(user):
+            f = Follow(followers=self, followed=user)
+            f.save()
+
+    def unfollow(self, user):
+        f = self.followed.filter_by(followed_id=user.id).first()
+        if f:
+            db.session.delete(f)
+            db.session.commit()
+
+    def is_following(self, user):
+        return self.followed.filter_by(
+                followed_id=user.id).first() is not None
+
+    def is_followed_by(self, user):
+        return self.follower.filter_by(
+                follower_id=user.id).first() is not None
+
+    @property
+    def followed_posts(self):
+        return Post.query.join(Follow, Follow.followed_id == Post.author_id) \
+            .filter(Follow.follower_id == self.id)
+
+
     def __repr__(self):
         return '<User %r>' % self.username
 
@@ -171,6 +233,7 @@ class Post(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)
     body = db.Column(db.Text)
+    body_html = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=now_)
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
@@ -192,5 +255,19 @@ class Post(db.Model):
                      author=u)
             p.save()
 
+    @staticmethod
+    def on_changed_body(target, value, oldvalue, initiator):
+        allowed_tags = ['a', 'abbr', 'acronym', 'b', 'blockquote', 'code',
+                        'em', 'i', 'li', 'ol', 'pre', 'strong', 'ul',
+                        'h1', 'h2', 'h3', 'p']
+        target.body_html = bleach.linkify(bleach.clean(
+            markdown(value, output_format='html'),
+            tags=allowed_tags, strip=True))
+
+
     def __repr__(self):
         return '<Post %r>' % self.id
+
+
+db.event.listen(Post.body, 'set', Post.on_changed_body)
+
