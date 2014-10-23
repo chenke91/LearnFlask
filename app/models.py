@@ -227,7 +227,7 @@ class Permission:
     FOLLOW = 0x01
     COMMENT = 0x02
     WRITE_ARTICLES = 0x04
-    MODERATE_COMMENT = 0x08
+    MODERATE_COMMENTS = 0x08
     ADMINISTER =  0x80
 
 class Post(db.Model):
@@ -287,6 +287,10 @@ class Comment(db.Model):
         target.body_html = bleach.linkify(bleach.clean(
                 markdown(value, output_format='html'),
                 tags=allowed_tags, strip=True))
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
 
 
 db.event.listen(Post.body, 'set', Post.on_changed_body)
