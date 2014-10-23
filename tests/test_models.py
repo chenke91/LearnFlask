@@ -10,6 +10,7 @@ class UserModelTestCase(unittest.TestCase):
         self.app_context = self.app.app_context()
         self.app_context.push()
         db.create_all()
+        Role.insert_roles()
 
     def tearDown(self):
         db.session.remove()
@@ -63,7 +64,7 @@ class UserModelTestCase(unittest.TestCase):
         Role.insert_roles()
         u = User(email='john@example.com', password='cat')
         self.assertTrue(u.can(Permission.WRITE_ARTICLES))
-        self.assertFalse(u.can(Permission.MODERATE_COMMENT))
+        self.assertFalse(u.can(Permission.MODERATE_COMMENTS))
 
     def test_anonymous_user(self):
         u = AnonymousUser()
