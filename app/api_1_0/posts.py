@@ -27,8 +27,8 @@ def get_posts():
 @api.route('/posts/<int:id>')
 @auth.login_required
 def get_post(id):
-    post - Post.query.get_or_404(id)
-    return jsonify(post.to_json)
+    post = Post.query.get_or_404(id)
+    return jsonify(post.to_json())
 
 @api.route('/posts/', methods=['POST'])
 @permission_required(Permission.WRITE_ARTICLES)

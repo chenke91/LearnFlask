@@ -1,4 +1,5 @@
 import unittest, json
+from base64 import b64encode
 from flask import url_for
 from app import create_app, db
 from app.models import User, Role
@@ -46,3 +47,13 @@ class APITestCase(unittest.TestCase):
         self.assertTrue(response.status_code == 201)
         url = response.headers.get('Location')
         self.assertIsNotNone(url)
+
+        #get the new post
+        response = self.client.get(
+            url,
+            headers=self.get_api_header('chenke91@qq.com', '123456'))
+        self.assertTrue(response.status_code == 200)
+        json_response = json.loads(response.data.decode('utf-8'))
+        self.assertTrue(json_response['url'] == url)
+        self.assertTrue(json_response['body'] == 'body of the blog post')
+        self.assertTrue(json_response['body_html'] == '<p>body of the blog post</p>')

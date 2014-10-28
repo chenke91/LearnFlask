@@ -157,7 +157,7 @@ class User(UserMixin,db.Model):
 
     @staticmethod
     def generate_fake(count=100):
-        from sqlalchemy.exc import IntegrityError, InvalidRequestError
+        from sqlalchemy.exc import IntegrityError
         from random import seed
         import forgery_py
 
@@ -174,7 +174,7 @@ class User(UserMixin,db.Model):
             db.session.add(u)
             try:
                 db.session.commit()
-            except IntegrityError or InvalidRequestError:
+            except IntegrityError:
                 db.session.rollback()
 
     def follow(self, user):
